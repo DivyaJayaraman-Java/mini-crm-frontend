@@ -11,35 +11,41 @@ const AdminPage = () => {
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user")) : null;
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Axios instance
+  const api = axios.create({
+    baseURL: `${API_URL}/api/admin`,
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
   useEffect(() => {
-    if (!token || !user || user.role !== "admin") router.replace("/login");
-    else fetchUsers();
-  }, []);
+    if (!token || !user || user.role !== "admin") {
+      router.replace("/login");
+    } else {
+      fetchUsers();
+    }
+  }, [token]);
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      setLoading(true);
+      const res = await api.get("/users");
       setUsers(res.data);
-      setLoading(false);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch users:", err);
       alert("Failed to fetch users");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRoleChange = async (id, role) => {
     try {
-      await axios.put(
-        `http://localhost:5000/api/admin/users/${id}`,
-        { role },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.put(`/users/${id}`, { role });
       fetchUsers();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to update role:", err);
       alert("Failed to update role");
     }
   };
@@ -47,12 +53,10 @@ const AdminPage = () => {
   const handleDelete = async (id) => {
     if (!confirm("Delete this user?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/admin/users/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/users/${id}`);
       fetchUsers();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to delete user:", err);
       alert("Failed to delete user");
     }
   };
