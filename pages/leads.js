@@ -9,30 +9,40 @@ const Leads = () => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [token, setToken] = useState(null);
 
-  // Get token safely
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
+  // Client-side initialization
   useEffect(() => {
-    if (!token) return router.replace("/login");
+    if (typeof window === "undefined") return;
+
+    const storedToken = localStorage.getItem("token");
+    if (!storedToken) {
+      router.replace("/login");
+      return;
+    }
+    setToken(storedToken);
 
     const storedUser = localStorage.getItem("user");
-    if (!storedUser) return router.replace("/login");
-
+    if (!storedUser) {
+      router.replace("/login");
+      return;
+    }
     const u = JSON.parse(storedUser);
     setUser(u);
-    fetchLeads(u);
-  }, []); // no need to add token in dependency array
 
-  const fetchLeads = async (u) => {
-    if (!token) return;
+    fetchLeads(u, storedToken);
+  }, [router]);
+
+  const fetchLeads = async (u, t) => {
+    if (!t) return;
     try {
       const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${t}` },
       });
+
       let data = res.data;
 
-      // Reps see only their leads
+      // Only show leads for reps
       if (u.role === "rep") {
         data = data.filter(
           (lead) =>
@@ -50,27 +60,23 @@ const Leads = () => {
     }
   };
 
+  const api = axios.create({
+    baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api/leads`,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!token) return;
-
     try {
-      if (editingId) {
-        await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${editingId}`, formData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } else {
-        await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, formData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
+      if (editingId) await api.put(`/${editingId}`, formData);
+      else await api.post("/", formData);
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
       setShowForm(false);
-      fetchLeads(user);
+      fetchLeads(user, token);
     } catch (err) {
       console.error(err);
       alert("Failed to save lead");
@@ -84,14 +90,10 @@ const Leads = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!token) return;
     if (!confirm("Are you sure you want to delete this lead?")) return;
-
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchLeads(user);
+      await api.delete(`/${id}`);
+      fetchLeads(user, token);
     } catch (err) {
       console.error(err);
       alert("Failed to delete lead");
@@ -99,16 +101,12 @@ const Leads = () => {
   };
 
   const handleConvert = async (lead) => {
-    if (!token) return;
     const value = prompt("Enter opportunity value:", "0");
     if (value === null) return;
-
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/leads/${lead._id}/convert`,
-        { value: Number(value) },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.post(`/${lead._id}/convert`, {
+        value: Number(value),
+      });
       const updatedLead = res.data.lead;
       setLeads((prevLeads) =>
         prevLeads.map((l) => (l._id === updatedLead._id ? updatedLead : l))
@@ -135,7 +133,7 @@ const Leads = () => {
     }
   };
 
-  if (!user) return null; // Prevent render before user is set
+  if (!user) return null; // Wait for client-side user initialization
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem", fontFamily: "Arial, sans-serif" }}>
@@ -144,7 +142,7 @@ const Leads = () => {
         <h1 style={{ color: "#0d6efd" }}>Leads</h1>
       </div>
 
-      {/* Add Lead button for reps */}
+      {/* Add Lead button */}
       {user.role === "rep" && !showForm && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
           <button
