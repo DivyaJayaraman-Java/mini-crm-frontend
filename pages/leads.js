@@ -9,31 +9,26 @@ const Leads = () => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   useEffect(() => {
-    // Client-side only
-    if (typeof window === "undefined") return;
+    if (!token) return router.replace("/login");
 
-    const storedToken = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
+    if (!storedUser) return router.replace("/login");
 
-    if (!storedToken || !storedUser) {
-      router.replace("/login");
-      return;
-    }
-
-    setToken(storedToken);
     const u = JSON.parse(storedUser);
     setUser(u);
 
-    fetchLeads(u, storedToken);
-  }, [router]);
+    fetchLeads(u, token);
+  }, [token, router]);
 
   const fetchLeads = async (u, t) => {
     if (!t) return;
-
     try {
+      setLoading(true);
       const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, {
         headers: { Authorization: `Bearer ${t}` },
       });
@@ -53,6 +48,8 @@ const Leads = () => {
     } catch (err) {
       console.error("Failed to fetch leads:", err.response || err.message);
       alert("Failed to fetch leads");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,7 +64,8 @@ const Leads = () => {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       if (editingId)
         await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${editingId}`, formData, config);
-      else await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, formData, config);
+      else
+        await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, formData, config);
 
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
@@ -120,16 +118,11 @@ const Leads = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "New":
-        return "#0d6efd";
-      case "Contacted":
-        return "#6f42c1";
-      case "Qualified":
-        return "#198754";
-      case "Converted":
-        return "#fd7e14";
-      default:
-        return "#6c757d";
+      case "New": return "#0d6efd";
+      case "Contacted": return "#6f42c1";
+      case "Qualified": return "#198754";
+      case "Converted": return "#fd7e14";
+      default: return "#6c757d";
     }
   };
 
@@ -138,11 +131,13 @@ const Leads = () => {
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1 style={{ color: "#0d6efd", marginBottom: "1rem" }}>Leads</h1>
+
       {user.role === "rep" && !showForm && (
         <button onClick={() => setShowForm(true)} style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "1rem" }}>
           + Add Lead
         </button>
       )}
+
       {user.role === "rep" && showForm && (
         <form onSubmit={handleSubmit} style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
           <input name="name" placeholder="Name" value={formData.name} onChange={handleChange} required style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }} />
@@ -153,16 +148,17 @@ const Leads = () => {
           </button>
         </form>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px", border: "1px solid #ccc", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+
+      {loading ? <p>Loading leads...</p> : (
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px", border: "1px solid #ccc" }}>
           <thead>
-            <tr style={{ background: "#0d6efd", color: "#fff", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Name</th>
-              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Email</th>
-              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Phone</th>
-              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Status</th>
-              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Rep</th>
-              {user.role === "rep" && <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Actions</th>}
+            <tr style={{ background: "#0d6efd", color: "#fff" }}>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Name</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Email</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Phone</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Status</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Rep</th>
+              {user.role === "rep" && <th style={{ padding: "0.75rem", border: "1px solid #ddd" }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -172,14 +168,12 @@ const Leads = () => {
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.email}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.phone}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  <span style={{ padding: "0.25rem 0.75rem", borderRadius: "12px", backgroundColor: getStatusColor(lead.status), color: "#fff", fontWeight: "500", fontSize: "0.85rem" }}>
-                    {lead.status}
-                  </span>
+                  <span style={{ padding: "0.25rem 0.75rem", borderRadius: "12px", backgroundColor: getStatusColor(lead.status), color: "#fff" }}>{lead.status}</span>
                 </td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.ownerId?.name || "N/A"}</td>
                 {user.role === "rep" && (
                   <td style={{ padding: "0.5rem", border: "1px solid #ccc", display: "flex", gap: "0.5rem" }}>
-                    <button onClick={() => setFormData({ name: lead.name, email: lead.email, phone: lead.phone }) || setEditingId(lead._id) || setShowForm(true)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #0d6efd", color: "#0d6efd", cursor: "pointer" }}>Edit</button>
+                    <button onClick={() => { setFormData({ name: lead.name, email: lead.email, phone: lead.phone }); setEditingId(lead._id); setShowForm(true); }} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #0d6efd", color: "#0d6efd", cursor: "pointer" }}>Edit</button>
                     <button onClick={() => handleDelete(lead._id)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #dc3545", color: "#dc3545", cursor: "pointer" }}>Delete</button>
                     {lead.status !== "Converted" && <button onClick={() => handleConvert(lead)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #198754", color: "#198754", cursor: "pointer" }}>Convert</button>}
                   </td>
@@ -188,7 +182,7 @@ const Leads = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      )}
     </div>
   );
 };
