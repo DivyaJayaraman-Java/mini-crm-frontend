@@ -9,50 +9,36 @@ const Leads = () => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-
-  // Only set after client-side mount
   const [token, setToken] = useState(null);
-  const [apiURL, setApiURL] = useState("");
 
   useEffect(() => {
+    // Client-side only
     if (typeof window === "undefined") return;
 
     const storedToken = localStorage.getItem("token");
-    if (!storedToken) {
-      router.replace("/login");
-      return;
-    }
-    setToken(storedToken);
-
     const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
+
+    if (!storedToken || !storedUser) {
       router.replace("/login");
       return;
     }
+
+    setToken(storedToken);
     const u = JSON.parse(storedUser);
     setUser(u);
 
-    // Make sure NEXT_PUBLIC_API_URL is available
-    const url = process.env.NEXT_PUBLIC_API_URL;
-    if (!url) {
-      console.error("NEXT_PUBLIC_API_URL is not set!");
-      alert("API URL not configured");
-      return;
-    }
-    setApiURL(url);
-
-    fetchLeads(u, storedToken, url);
+    fetchLeads(u, storedToken);
   }, [router]);
 
-  const fetchLeads = async (u, t, url) => {
-    if (!t || !url) return;
+  const fetchLeads = async (u, t) => {
+    if (!t) return;
+
     try {
-      const res = await axios.get(`${url}/api/leads`, {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, {
         headers: { Authorization: `Bearer ${t}` },
       });
 
       let data = res.data;
-
       if (u.role === "rep") {
         data = data.filter(
           (lead) =>
@@ -75,17 +61,18 @@ const Leads = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!token || !apiURL) return;
+    if (!token) return;
+
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       if (editingId)
-        await axios.put(`${apiURL}/api/leads/${editingId}`, formData, config);
-      else await axios.post(`${apiURL}/api/leads`, formData, config);
+        await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${editingId}`, formData, config);
+      else await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, formData, config);
 
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
       setShowForm(false);
-      fetchLeads(user, token, apiURL);
+      fetchLeads(user, token);
     } catch (err) {
       console.error("Failed to save lead:", err.response || err.message);
       alert("Failed to save lead");
@@ -94,12 +81,13 @@ const Leads = () => {
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this lead?")) return;
-    if (!token || !apiURL) return;
+    if (!token) return;
+
     try {
-      await axios.delete(`${apiURL}/api/leads/${id}`, {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchLeads(user, token, apiURL);
+      fetchLeads(user, token);
     } catch (err) {
       console.error("Failed to delete lead:", err.response || err.message);
       alert("Failed to delete lead");
@@ -107,14 +95,18 @@ const Leads = () => {
   };
 
   const handleConvert = async (lead) => {
+    if (!token) return;
+
     const value = prompt("Enter opportunity value:", "0");
-    if (value === null || !token || !apiURL) return;
+    if (value === null) return;
+
     try {
       const res = await axios.post(
-        `${apiURL}/api/leads/${lead._id}/convert`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/leads/${lead._id}/convert`,
         { value: Number(value) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       const updatedLead = res.data.lead;
       setLeads((prevLeads) =>
         prevLeads.map((l) => (l._id === updatedLead._id ? updatedLead : l))
@@ -145,17 +137,12 @@ const Leads = () => {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem", fontFamily: "Arial, sans-serif" }}>
-      {/* Header */}
       <h1 style={{ color: "#0d6efd", marginBottom: "1rem" }}>Leads</h1>
       {user.role === "rep" && !showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "1rem" }}
-        >
+        <button onClick={() => setShowForm(true)} style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "1rem" }}>
           + Add Lead
         </button>
       )}
-
       {user.role === "rep" && showForm && (
         <form onSubmit={handleSubmit} style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
           <input name="name" placeholder="Name" value={formData.name} onChange={handleChange} required style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }} />
@@ -166,8 +153,6 @@ const Leads = () => {
           </button>
         </form>
       )}
-
-      {/* Table */}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px", border: "1px solid #ccc", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
           <thead>
@@ -194,7 +179,7 @@ const Leads = () => {
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.ownerId?.name || "N/A"}</td>
                 {user.role === "rep" && (
                   <td style={{ padding: "0.5rem", border: "1px solid #ccc", display: "flex", gap: "0.5rem" }}>
-                    <button onClick={() => handleEdit(lead)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #0d6efd", color: "#0d6efd", cursor: "pointer" }}>Edit</button>
+                    <button onClick={() => setFormData({ name: lead.name, email: lead.email, phone: lead.phone }) || setEditingId(lead._id) || setShowForm(true)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #0d6efd", color: "#0d6efd", cursor: "pointer" }}>Edit</button>
                     <button onClick={() => handleDelete(lead._id)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #dc3545", color: "#dc3545", cursor: "pointer" }}>Delete</button>
                     {lead.status !== "Converted" && <button onClick={() => handleConvert(lead)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #198754", color: "#198754", cursor: "pointer" }}>Convert</button>}
                   </td>
