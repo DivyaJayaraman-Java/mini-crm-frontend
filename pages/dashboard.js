@@ -23,9 +23,12 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-     const res = await axios.get("http://localhost:5000/api/dashboard/stats", {
-  headers: { Authorization: `Bearer ${token}` },
-});
+   const res = await axios.get(
+  `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats`,
+  {
+    headers: { Authorization: `Bearer ${token}` },
+  }
+);
       setStats(res.data);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
