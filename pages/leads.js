@@ -24,10 +24,10 @@ const Leads = () => {
     fetchLeads(u);
   }, []);
 
-  const api = axios.create({
-    baseURL: "http://localhost:5000/api/leads",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+const api = axios.create({
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api/leads`,
+  headers: { Authorization: `Bearer ${token}` },
+});
 
   const fetchLeads = async (u) => {
     try {

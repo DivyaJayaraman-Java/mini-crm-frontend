@@ -29,10 +29,12 @@ const Opportunities = () => {
     fetchOpportunities(u);
   }, []);
 
+ 
+
   const api = axios.create({
-    baseURL: "http://localhost:5000/api/opportunities",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api/opportunities`,
+  headers: { Authorization: `Bearer ${token}` },
+});
 
   const fetchOpportunities = async (u) => {
     try {
