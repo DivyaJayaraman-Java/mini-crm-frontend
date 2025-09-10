@@ -6,8 +6,10 @@ const Dashboard = () => {
   const router = useRouter();
   const [stats, setStats] = useState({ leads: {}, opportunities: {} });
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   useEffect(() => {
     if (!token) return router.replace("/login");
@@ -15,24 +17,25 @@ const Dashboard = () => {
     const storedUser = localStorage.getItem("user");
     if (!storedUser) return router.replace("/login");
 
-    const u = JSON.parse(storedUser);
-    setUser(u);
-
+    setUser(JSON.parse(storedUser));
     fetchStats();
-  }, []);
+  }, [token]);
 
   const fetchStats = async () => {
     try {
-   const res = await axios.get(
-  `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats`,
-  {
-    headers: { Authorization: `Bearer ${token}` },
-  }
-);
+      setLoading(true);
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setStats(res.data);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
       alert("Failed to fetch dashboard stats");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,52 +55,43 @@ const Dashboard = () => {
   if (!user) return null;
 
   const handleCardClick = (type) => {
-    if (type === "leads") router.push("/leads");
-    if (type === "opportunities") router.push("/opportunities");
+    router.push(`/${type}`);
   };
 
   return (
     <div style={styles.page}>
-      <h2 style={styles.title}>{user.role === "manager" ? "Manager" : "Sales Rep"} Dashboard</h2>
+      <h2 style={styles.title}>
+        {user.role === "manager" ? "Manager" : "Sales Rep"} Dashboard
+      </h2>
 
       <div style={styles.grid}>
-        {/* Leads Card */}
-        <div
-          style={styles.card}
-          onClick={() => handleCardClick("leads")}
-        >
-          <h3 style={styles.cardTitle}>Leads by Status</h3>
-          {Object.keys(stats.leads).length === 0 ? (
-            <p style={styles.empty}>No data</p>
-          ) : (
-            Object.entries(stats.leads).map(([status, count]) => (
-              <div key={status} style={styles.item}>
-                <span style={{ ...styles.badge, background: getBadgeColor(status) }} />
-                <span style={styles.label}>{status}</span>
-                <span style={styles.value}>{count}</span>
-              </div>
-            ))
-          )}
-        </div>
+        {["leads", "opportunities"].map((type) => (
+          <div
+            key={type}
+            style={styles.card}
+            onClick={() => handleCardClick(type)}
+          >
+            <h3 style={styles.cardTitle}>
+              {type === "leads" ? "Leads by Status" : "Opportunities by Stage"}
+            </h3>
 
-        {/* Opportunities Card */}
-        <div
-          style={styles.card}
-          onClick={() => handleCardClick("opportunities")}
-        >
-          <h3 style={styles.cardTitle}>Opportunities by Stage</h3>
-          {Object.keys(stats.opportunities).length === 0 ? (
-            <p style={styles.empty}>No data</p>
-          ) : (
-            Object.entries(stats.opportunities).map(([stage, count]) => (
-              <div key={stage} style={styles.item}>
-                <span style={{ ...styles.badge, background: getBadgeColor(stage) }} />
-                <span style={styles.label}>{stage}</span>
-                <span style={styles.value}>{count}</span>
-              </div>
-            ))
-          )}
-        </div>
+            {loading ? (
+              <p style={styles.loading}>Loading...</p>
+            ) : Object.keys(stats[type]).length === 0 ? (
+              <p style={styles.empty}>No data</p>
+            ) : (
+              Object.entries(stats[type]).map(([key, count]) => (
+                <div key={key} style={styles.item}>
+                  <span
+                    style={{ ...styles.badge, background: getBadgeColor(key) }}
+                  />
+                  <span style={styles.label}>{key}</span>
+                  <span style={styles.value}>{count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -130,7 +124,7 @@ const styles = {
     padding: "1rem",
     flex: "1 1 250px",
     maxWidth: "300px",
-    minHeight: "200px",
+    minHeight: "220px",
     cursor: "pointer",
     transition: "transform 0.2s, box-shadow 0.2s",
   },
@@ -172,18 +166,13 @@ const styles = {
     fontSize: "0.85rem",
     fontStyle: "italic",
   },
+  loading: {
+    color: "#6b7280",
+    fontSize: "0.85rem",
+    fontStyle: "italic",
+  },
 };
 
-// Hover effect using inline style
-if (typeof window !== "undefined") {
-  const style = document.createElement("style");
-  style.innerHTML = `
-    div[style*="cursor: pointer"]:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 export default Dashboard;
+console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+console.log("Final Request:", `${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats`);

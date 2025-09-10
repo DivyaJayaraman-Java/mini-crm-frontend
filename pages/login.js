@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const Login = () => {
   const router = useRouter();
   const [isSignup, setIsSignup] = useState(false);
@@ -19,31 +21,27 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (isSignup) {
-        // Signup request
-        await axios.post("http://localhost:5000/api/auth/signup", formData);
-        alert("Signup successful! Please login.");
-        setIsSignup(false);
-      } else {
-        // Login request
-        const res = await axios.post("http://localhost:5000/api/auth/login", {
-          email: formData.email,
-          password: formData.password,
-        });
+if (isSignup) {
+  await axios.post(`${API_URL}/api/auth/signup`, formData);
+  alert("Signup successful! Please login.");
+  setIsSignup(false);
+} else {
+  const res = await axios.post(`${API_URL}/api/auth/login`, {
+    email: formData.email,
+    password: formData.password,
+  });
 
-        const { token, user } = res.data;
+  const { token, user } = res.data;
+  localStorage.setItem("token", token);
+  localStorage.setItem("user", JSON.stringify(user));
 
-        // Save token & user in localStorage
-        localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
+  if (user.role === "admin") {
+    router.push("/admin");
+  } else {
+    router.push("/leads");
+  }
+}
 
-        // Redirect based on role
-        if (user.role === "admin") {
-          router.push("/admin");
-        } else {
-          router.push("/leads");
-        }
-      }
     } catch (err) {
       console.error(err);
       alert("Error: " + (err.response?.data?.message || "Something went wrong"));
