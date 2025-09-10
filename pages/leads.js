@@ -11,15 +11,8 @@ const Leads = () => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // token safely for both SSR and client
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  // axios instance
-  const api = axios.create({
-    baseURL: `${API_URL}/api/leads`,
-    headers: { Authorization: `Bearer ${token}` },
-  });
 
   useEffect(() => {
     if (!token) return router.replace("/login");
@@ -30,7 +23,7 @@ const Leads = () => {
     const u = JSON.parse(storedUser);
     setUser(u);
     fetchLeads(u);
-  }, [token]);
+  }, []); // run once
 
   const fetchLeads = async (u) => {
     if (!token) return;
@@ -42,14 +35,11 @@ const Leads = () => {
 
       let data = res.data;
 
-      // reps only see their own leads
+      // Reps only see their own leads
       if (u.role === "rep") {
         data = data.filter(
           (lead) =>
-            lead.ownerId?._id === u._id ||
-            lead.ownerId?._id === u.id ||
-            lead.ownerId === u._id ||
-            lead.ownerId === u.id
+            lead.ownerId?._id === u.id || lead.ownerId === u.id
         );
       }
 
@@ -68,8 +58,12 @@ const Leads = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) await api.put(`/${editingId}`, formData);
-      else await api.post("/", formData);
+      if (!token) return alert("Not authorized");
+
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      if (editingId) await axios.put(`${API_URL}/api/leads/${editingId}`, formData, config);
+      else await axios.post(`${API_URL}/api/leads`, formData, config);
 
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
@@ -90,7 +84,9 @@ const Leads = () => {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this lead?")) return;
     try {
-      await api.delete(`/${id}`);
+      await axios.delete(`${API_URL}/api/leads/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchLeads(user);
     } catch (err) {
       console.error("Failed to delete lead:", err);
@@ -102,7 +98,11 @@ const Leads = () => {
     const value = prompt("Enter opportunity value:", "0");
     if (value === null) return;
     try {
-      const res = await api.post(`/${lead._id}/convert`, { value: Number(value) });
+      const res = await axios.post(
+        `${API_URL}/api/leads/${lead._id}/convert`,
+        { value: Number(value) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const updatedLead = res.data.lead;
       setLeads((prevLeads) =>
         prevLeads.map((l) => (l._id === updatedLead._id ? updatedLead : l))
