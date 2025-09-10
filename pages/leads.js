@@ -9,9 +9,11 @@ const Leads = () => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [token, setToken] = useState(null);
 
-  // Client-side initialization
+  // Only set after client-side mount
+  const [token, setToken] = useState(null);
+  const [apiURL, setApiURL] = useState("");
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -30,19 +32,27 @@ const Leads = () => {
     const u = JSON.parse(storedUser);
     setUser(u);
 
-    fetchLeads(u, storedToken);
+    // Make sure NEXT_PUBLIC_API_URL is available
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url) {
+      console.error("NEXT_PUBLIC_API_URL is not set!");
+      alert("API URL not configured");
+      return;
+    }
+    setApiURL(url);
+
+    fetchLeads(u, storedToken, url);
   }, [router]);
 
-  const fetchLeads = async (u, t) => {
-    if (!t) return;
+  const fetchLeads = async (u, t, url) => {
+    if (!t || !url) return;
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, {
+      const res = await axios.get(`${url}/api/leads`, {
         headers: { Authorization: `Bearer ${t}` },
       });
 
       let data = res.data;
 
-      // Only show leads for reps
       if (u.role === "rep") {
         data = data.filter(
           (lead) =>
@@ -55,65 +65,63 @@ const Leads = () => {
 
       setLeads(data);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch leads:", err.response || err.message);
       alert("Failed to fetch leads");
     }
   };
-
-  const api = axios.create({
-    baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api/leads`,
-    headers: { Authorization: `Bearer ${token}` },
-  });
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!token || !apiURL) return;
     try {
-      if (editingId) await api.put(`/${editingId}`, formData);
-      else await api.post("/", formData);
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      if (editingId)
+        await axios.put(`${apiURL}/api/leads/${editingId}`, formData, config);
+      else await axios.post(`${apiURL}/api/leads`, formData, config);
+
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
       setShowForm(false);
-      fetchLeads(user, token);
+      fetchLeads(user, token, apiURL);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to save lead:", err.response || err.message);
       alert("Failed to save lead");
     }
   };
 
-  const handleEdit = (lead) => {
-    setFormData({ name: lead.name, email: lead.email, phone: lead.phone });
-    setEditingId(lead._id);
-    setShowForm(true);
-  };
-
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this lead?")) return;
+    if (!token || !apiURL) return;
     try {
-      await api.delete(`/${id}`);
-      fetchLeads(user, token);
+      await axios.delete(`${apiURL}/api/leads/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchLeads(user, token, apiURL);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to delete lead:", err.response || err.message);
       alert("Failed to delete lead");
     }
   };
 
   const handleConvert = async (lead) => {
     const value = prompt("Enter opportunity value:", "0");
-    if (value === null) return;
+    if (value === null || !token || !apiURL) return;
     try {
-      const res = await api.post(`/${lead._id}/convert`, {
-        value: Number(value),
-      });
+      const res = await axios.post(
+        `${apiURL}/api/leads/${lead._id}/convert`,
+        { value: Number(value) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const updatedLead = res.data.lead;
       setLeads((prevLeads) =>
         prevLeads.map((l) => (l._id === updatedLead._id ? updatedLead : l))
       );
       alert("Lead converted to opportunity!");
     } catch (err) {
-      console.error(err);
+      console.error("Failed to convert lead:", err.response || err.message);
       alert("Failed to convert lead");
     }
   };
@@ -133,78 +141,33 @@ const Leads = () => {
     }
   };
 
-  if (!user) return null; // Wait for client-side user initialization
+  if (!user) return null;
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       {/* Header */}
-      <div style={{ marginBottom: "0.5rem" }}>
-        <h1 style={{ color: "#0d6efd" }}>Leads</h1>
-      </div>
-
-      {/* Add Lead button */}
+      <h1 style={{ color: "#0d6efd", marginBottom: "1rem" }}>Leads</h1>
       {user.role === "rep" && !showForm && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
-              background: "#0d6efd",
-              color: "#fff",
-              padding: "0.5rem 1rem",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <span style={{ fontWeight: "bold" }}>+</span> Add Lead
-          </button>
-        </div>
+        <button
+          onClick={() => setShowForm(true)}
+          style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "1rem" }}
+        >
+          + Add Lead
+        </button>
       )}
 
-      {/* Add/Edit Lead Form */}
       {user.role === "rep" && showForm && (
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}
-        >
-          <input
-            name="name"
-            placeholder="Name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-          <input
-            name="phone"
-            placeholder="Phone"
-            value={formData.phone}
-            onChange={handleChange}
-            required
-            style={{ flex: "1 1 150px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-          <button
-            type="submit"
-            style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer" }}
-          >
+        <form onSubmit={handleSubmit} style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+          <input name="name" placeholder="Name" value={formData.name} onChange={handleChange} required style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }} />
+          <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} required style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }} />
+          <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} required style={{ flex: "1 1 150px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }} />
+          <button type="submit" style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer" }}>
             {editingId ? "Update Lead" : "Add Lead"}
           </button>
         </form>
       )}
 
-      {/* Leads Table */}
+      {/* Table */}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px", border: "1px solid #ccc", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
           <thead>
