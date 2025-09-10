@@ -10,8 +10,8 @@ const Leads = () => {
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  // Get token safely
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   useEffect(() => {
     if (!token) return router.replace("/login");
@@ -22,16 +22,14 @@ const Leads = () => {
     const u = JSON.parse(storedUser);
     setUser(u);
     fetchLeads(u);
-  }, []);
-
-const api = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api/leads`,
-  headers: { Authorization: `Bearer ${token}` },
-});
+  }, []); // no need to add token in dependency array
 
   const fetchLeads = async (u) => {
+    if (!token) return;
     try {
-      const res = await api.get("/");
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       let data = res.data;
 
       // Reps see only their leads
@@ -57,9 +55,18 @@ const api = axios.create({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!token) return;
+
     try {
-      if (editingId) await api.put(`/${editingId}`, formData);
-      else await api.post("/", formData);
+      if (editingId) {
+        await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${editingId}`, formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/leads`, formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
       setFormData({ name: "", email: "", phone: "" });
       setEditingId(null);
       setShowForm(false);
@@ -77,9 +84,13 @@ const api = axios.create({
   };
 
   const handleDelete = async (id) => {
+    if (!token) return;
     if (!confirm("Are you sure you want to delete this lead?")) return;
+
     try {
-      await api.delete(`/${id}`);
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/leads/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchLeads(user);
     } catch (err) {
       console.error(err);
@@ -88,12 +99,16 @@ const api = axios.create({
   };
 
   const handleConvert = async (lead) => {
+    if (!token) return;
     const value = prompt("Enter opportunity value:", "0");
     if (value === null) return;
+
     try {
-      const res = await api.post(`/${lead._id}/convert`, {
-        value: Number(value),
-      });
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/leads/${lead._id}/convert`,
+        { value: Number(value) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const updatedLead = res.data.lead;
       setLeads((prevLeads) =>
         prevLeads.map((l) => (l._id === updatedLead._id ? updatedLead : l))
@@ -123,14 +138,7 @@ const api = axios.create({
   if (!user) return null; // Prevent render before user is set
 
   return (
-    <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "2rem",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       {/* Header */}
       <div style={{ marginBottom: "0.5rem" }}>
         <h1 style={{ color: "#0d6efd" }}>Leads</h1>
@@ -138,13 +146,7 @@ const api = axios.create({
 
       {/* Add Lead button for reps */}
       {user.role === "rep" && !showForm && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            marginBottom: "1rem",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
           <button
             onClick={() => setShowForm(true)}
             style={{
@@ -168,12 +170,7 @@ const api = axios.create({
       {user.role === "rep" && showForm && (
         <form
           onSubmit={handleSubmit}
-          style={{
-            display: "flex",
-            gap: "1rem",
-            marginBottom: "2rem",
-            flexWrap: "wrap",
-          }}
+          style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}
         >
           <input
             name="name"
@@ -181,12 +178,7 @@ const api = axios.create({
             value={formData.name}
             onChange={handleChange}
             required
-            style={{
-              flex: "1 1 200px",
-              padding: "0.5rem",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
+            style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
           />
           <input
             name="email"
@@ -195,12 +187,7 @@ const api = axios.create({
             value={formData.email}
             onChange={handleChange}
             required
-            style={{
-              flex: "1 1 200px",
-              padding: "0.5rem",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
+            style={{ flex: "1 1 200px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
           />
           <input
             name="phone"
@@ -208,23 +195,11 @@ const api = axios.create({
             value={formData.phone}
             onChange={handleChange}
             required
-            style={{
-              flex: "1 1 150px",
-              padding: "0.5rem",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
+            style={{ flex: "1 1 150px", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
           />
           <button
             type="submit"
-            style={{
-              background: "#0d6efd",
-              color: "#fff",
-              padding: "0.5rem 1rem",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
+            style={{ background: "#0d6efd", color: "#fff", padding: "0.5rem 1rem", border: "none", borderRadius: "4px", cursor: "pointer" }}
           >
             {editingId ? "Update Lead" : "Add Lead"}
           </button>
@@ -233,163 +208,34 @@ const api = axios.create({
 
       {/* Leads Table */}
       <div style={{ overflowX: "auto" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            minWidth: "700px",
-            border: "1px solid #ccc",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-          }}
-        >
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px", border: "1px solid #ccc", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
           <thead>
-            <tr
-              style={{
-                background: "#0d6efd",
-                color: "#fff",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              <th
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #ddd",
-                  textAlign: "left",
-                }}
-              >
-                Name
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #ddd",
-                  textAlign: "left",
-                }}
-              >
-                Email
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #ddd",
-                  textAlign: "left",
-                }}
-              >
-                Phone
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #ddd",
-                  textAlign: "left",
-                }}
-              >
-                Status
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #ddd",
-                  textAlign: "left",
-                }}
-              >
-                Rep
-              </th>
-              {user.role === "rep" && (
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    border: "1px solid #ddd",
-                    textAlign: "left",
-                  }}
-                >
-                  Actions
-                </th>
-              )}
+            <tr style={{ background: "#0d6efd", color: "#fff", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Name</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Email</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Phone</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Status</th>
+              <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Rep</th>
+              {user.role === "rep" && <th style={{ padding: "0.75rem", border: "1px solid #ddd", textAlign: "left" }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {leads.map((lead, idx) => (
-              <tr
-                key={lead._id}
-                style={{
-                  background: idx % 2 === 0 ? "#f9f9f9" : "#fff",
-                }}
-              >
+              <tr key={lead._id} style={{ background: idx % 2 === 0 ? "#f9f9f9" : "#fff" }}>
+                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.name}</td>
+                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.email}</td>
+                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.phone}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  {lead.name}
-                </td>
-                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  {lead.email}
-                </td>
-                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  {lead.phone}
-                </td>
-                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  <span
-                    style={{
-                      padding: "0.25rem 0.75rem",
-                      borderRadius: "12px",
-                      backgroundColor: getStatusColor(lead.status),
-                      color: "#fff",
-                      fontWeight: "500",
-                      fontSize: "0.85rem",
-                    }}
-                  >
+                  <span style={{ padding: "0.25rem 0.75rem", borderRadius: "12px", backgroundColor: getStatusColor(lead.status), color: "#fff", fontWeight: "500", fontSize: "0.85rem" }}>
                     {lead.status}
                   </span>
                 </td>
-                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>
-                  {lead.ownerId?.name || "N/A"}
-                </td>
+                <td style={{ padding: "0.5rem", border: "1px solid #ccc" }}>{lead.ownerId?.name || "N/A"}</td>
                 {user.role === "rep" && (
-                  <td
-                    style={{
-                      padding: "0.5rem",
-                      border: "1px solid #ccc",
-                      display: "flex",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <button
-                      onClick={() => handleEdit(lead)}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "4px",
-                        border: "1px solid #0d6efd",
-                        color: "#0d6efd",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(lead._id)}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "4px",
-                        border: "1px solid #dc3545",
-                        color: "#dc3545",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
-                    {lead.status !== "Converted" && (
-                      <button
-                        onClick={() => handleConvert(lead)}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "4px",
-                          border: "1px solid #198754",
-                          color: "#198754",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Convert
-                      </button>
-                    )}
+                  <td style={{ padding: "0.5rem", border: "1px solid #ccc", display: "flex", gap: "0.5rem" }}>
+                    <button onClick={() => handleEdit(lead)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #0d6efd", color: "#0d6efd", cursor: "pointer" }}>Edit</button>
+                    <button onClick={() => handleDelete(lead._id)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #dc3545", color: "#dc3545", cursor: "pointer" }}>Delete</button>
+                    {lead.status !== "Converted" && <button onClick={() => handleConvert(lead)} style={{ padding: "0.25rem 0.5rem", borderRadius: "4px", border: "1px solid #198754", color: "#198754", cursor: "pointer" }}>Convert</button>}
                   </td>
                 )}
               </tr>
