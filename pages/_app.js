@@ -6,7 +6,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const hideNavbar = router.pathname === "/login" || router.pathname === "/signup"; // hide on login/signup
+  const hideNavbar = router.pathname === "/login" || router.pathname === "/signup"; 
 
   return (
     <>
